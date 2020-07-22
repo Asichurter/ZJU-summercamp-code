@@ -5,9 +5,10 @@
 # 导师: 蔡登
 # --------------------
 #
-# 本文件中主要使用opencv进行双目摄像机的标定。先利用
-# calibrateCamera逐个标定单目摄像机获得相机矩阵，然后利用两个摄像
-# 机的相机矩阵计算两个相机坐标系的转换，利用APi:stereoCalibrate
+# 本文件中主要使用opencv进行左右相机图片的整形(rectification)。
+# 主要是利用双目标定中获得的一系列旋转矩阵，位移矩阵和基础矩阵等数据，
+# 利用opencv的stereoRectify接口完成整形，获得投影矩阵，然后利用
+# initUndistortRectifyMap和remap接口完成图像整形的重映射
 ######################################################
 
 import numpy as np
