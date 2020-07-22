@@ -5,9 +5,10 @@
 # 导师: 蔡登
 # --------------------
 #
-# 本文件中主要使用opencv进行双目摄像机的标定。先利用
-# calibrateCamera逐个标定单目摄像机获得相机矩阵，然后利用两个摄像
-# 机的相机矩阵计算两个相机坐标系的转换，利用APi:stereoCalibrate
+# 本文件中主要使用在rectification.py中整形过后的图片，画出其
+# 极线，证明双目照相机已经成功rectified。主要使用了opencv的
+#　computeCorrespondEpilines，根据基础矩阵计算两台摄像机
+# 图像之间的对应关系
 ######################################################
 
 import numpy as np
@@ -39,6 +40,7 @@ os.system('rm -rf ../imgs/check/*')
 
 # 某些pair会导致过大的RMS，将这些pair去除
 excluded_idx = [12]
+used_idx = 1
 
 print('收集图像点坐标...')
 for i,(left,right) in enumerate(zip(left_imgs,right_imgs)):
@@ -112,8 +114,23 @@ retval, cameraMatrix1, distCoeffs1, cameraMatrix2, distCoeffs2, R, T, E, F = \
                         criteria=criteria)
 
 print('*'*50)
-print('左摄像机到右摄像机坐标系的旋转矩阵:','\n',R)
-print('左摄像机到右摄像机坐标系的位移矩阵:','\n',T)
-print('左摄像机到右摄像机坐标系的本征矩阵:','\n',E)
-print('左摄像机到右摄像机坐标系的基础矩阵:','\n',F)
 print('重建损失:', retval)
+
+# 只选择指定下标的图像用于demo
+l_rectified = left_cached_imgs[used_idx]
+r_rectified = right_cached_imgs[used_idx]
+
+# 获取极线方程
+l_epiline = cv2.computeCorrespondEpilines(left_imgpoints[used_idx][::7],1,F)
+r_epiline = cv2.computeCorrespondEpilines(right_imgpoints[used_idx][::7],2,F)
+
+width = l_rectified.shape[1]
+for l_line,r_line in zip(l_epiline,r_epiline):
+    l_line, r_line = l_line[0], r_line[0]
+
+    # 注意：左摄像机图中点的极线应该画在右图中，右图极线画在左图中
+    cv2.line(r_rectified,(0,-l_line[2]/l_line[1]),(width,int(-(l_line[2]+l_line[0]*width)/l_line[1])), color=(0,0,255))
+    cv2.line(l_rectified,(0,-r_line[2]/r_line[1]),(width,int(-(r_line[2]+r_line[0]*width)/r_line[1])), color=(0,0,255))
+
+cv2.imwrite('../imgs/rectified/line_left.jpg', l_rectified)
+cv2.imwrite('../imgs/rectified/line_right.jpg', r_rectified)

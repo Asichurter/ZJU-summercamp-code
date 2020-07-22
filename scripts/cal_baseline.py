@@ -23,10 +23,12 @@ P2 = np.load('../data/right_camera_proj_mtx.npy')
 T1 = np.matmul(np.linalg.inv(lmtx),P1)
 T2 = np.matmul(np.linalg.inv(rmtx),P2)
 
+# 计算3D世界坐标系中任意一点在两个摄像机坐标系内的点坐标
 x1 = np.matmul(T1, x)
 x2 = np.matmul(T2, x)
 
 baseline = x1[0]-x2[0]
+
 print('x1',x1[0])
 print('x2',x2[0])
 print('b:',baseline)

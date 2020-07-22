@@ -30,12 +30,17 @@ objp[:,:2] = np.mgrid[0:7,0:6].T.reshape(-1,2)
 objpoints = [] # 存储棋盘点的3D世界坐标,为棋盘点坐标
 left_imgpoints = [] # 2D图像坐标,利用cv2的API求得
 right_imgpoints = [] # 2D图像坐标,利用cv2的API求得
+left_valid_gray = []
+right_valid_gray = []
 
 left_img_gray_cache = None
 right_img_gray_cache = None
-cached_index = 2
+cached_index = 1
 
 os.system('rm -rf ../imgs/rectified/*')
+os.mkdir('../imgs/rectified/right')
+os.mkdir('../imgs/rectified/left')
+
 left_imgs = glob.glob('../imgs/left/*.jpg')
 right_imgs = glob.glob('../imgs/right/*.jpg')
 
@@ -66,14 +71,14 @@ for i,(left,right) in enumerate(zip(left_imgs,right_imgs)):
     # 如果找到了棋盘点,将该场景下的3D和2D坐标加入到存储中
     # print(l_ret,r_ret)
     if l_ret and r_ret:
-        if len(valid_idx)==cached_index:
-            left_img_gray_cache = l_img
-            right_img_gray_cache = r_img
-
+        left_valid_gray.append(l_gray)
+        right_valid_gray.append(r_gray)
         valid_idx.append(i)
         objpoints.append(objp)
 
-        #--------------------------------------------------------------------------#
+        #-------------------------------------opencv进行双目摄像机的标定。先利用
+# calibrateCamera逐个标定单目摄像机获得相机矩阵，然后利用两个摄像
+# 机的相机矩阵计算两个相机坐标系的转换，利用APi:stereoCalibrate-------------------------------------#
         # 左摄像机，寻找棋盘点的亚像素位置
         l_corners2 = cv2.cornerSubPix(l_gray, l_corners, (11, 11), (-1, -1), criteria)
 
@@ -90,8 +95,6 @@ for i,(left,right) in enumerate(zip(left_imgs,right_imgs)):
         else:
             right_imgpoints.append(r_corners)
         # --------------------------------------------------------------------------#
-
-        #
         # l_img = cv2.drawChessboardCorners(l_img, (7,6), l_corners2, l_ret)
         # r_img = cv2.drawChessboardCorners(r_img, (7,6), r_corners2, r_ret)
         # # cv2.imshow('img_left',l_img)
@@ -99,8 +102,8 @@ for i,(left,right) in enumerate(zip(left_imgs,right_imgs)):
         # cv2.waitKey(1000)
 
 print('逐个标定单目摄像机...')
-ret, l_mtx, l_dist, l_rvecs, l_tvecs = cv2.calibrateCamera(objpoints, left_imgpoints, l_img_size, None, None, criteria=criteria)
-ret, r_mtx, r_dist, r_rvecs, r_tvecs = cv2.calibrateCamera(objpoints, right_imgpoints, r_img_size, None, None, criteria=criteria)
+ret, l_mtx, l_dist, l_rvecs, l_tvecs = cv2.calibrateCamera(objpoints, left_imgpoints, l_img_size, None, None)
+ret, r_mtx, r_dist, r_rvecs, r_tvecs = cv2.calibrateCamera(objpoints, right_imgpoints, r_img_size, None, None)
 
 print('标定双目摄像机...')
 retval, cameraMatrix1, distCoeffs1, cameraMatrix2, distCoeffs2, R, T, E, F = \
@@ -117,44 +120,40 @@ print('校正双目摄像机...')
 R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(l_mtx, l_dist,
                                                   r_mtx, r_dist,
                                                   l_img_size,
-                                                  R, T,
-                                                  alpha=-1)
+                                                  R, T)
 
 print('初始化整形映射...')
 mapx1, mapy1 = cv2.initUndistortRectifyMap(l_mtx, l_dist, R1, P1, l_img_size, cv2.CV_16SC2)
 mapx2, mapy2 = cv2.initUndistortRectifyMap(r_mtx, r_dist, R2, P2, r_img_size, cv2.CV_16SC2)
 
 # 选择一组cache的图像pair展现rectification以后的效果
-left_img, right_img = left_img_gray_cache, right_img_gray_cache
+for i,(l_gray,r_gray) in enumerate(zip(left_valid_gray, right_valid_gray)):
 
-l_rectified = cv2.remap(left_img, mapx1, mapy1, cv2.INTER_LINEAR)
-r_rectified = cv2.remap(right_img, mapx2, mapy2, cv2.INTER_LINEAR)
+    l_rectified = cv2.remap(l_gray, mapx1, mapy1, cv2.INTER_LINEAR)
+    r_rectified = cv2.remap(r_gray, mapx2, mapy2, cv2.INTER_LINEAR)
 
-cv2.imwrite('../imgs/rectified/before_left.jpg', left_img)
-cv2.imwrite('../imgs/rectified/before_right.jpg', right_img)
-cv2.imwrite('../imgs/rectified/after_left.jpg', l_rectified)
-cv2.imwrite('../imgs/rectified/after_right.jpg', r_rectified)
+    cv2.imwrite(f'../imgs/rectified/left/{i}.jpg', l_rectified)
+    cv2.imwrite(f'../imgs/rectified/right/{i}.jpg', r_rectified)
 
-# l_epi_img = l_rectified[:,:,0]
-# r_epi_img = r_rectified[:,:,0]
+print('双目摄像机标定RMS:', retval)
+
+# -------------------------------------------------------------------------------
+# l_epi_img = cv2.imread(f'../imgs/rectified/left/{cached_index}.jpg')
+# r_epi_img = cv2.imread(f'../imgs/rectified/right/{cached_index}.jpg')
 #
-# l_ret, l_corners = cv2.findChessboardCorners(l_epi_img, (7, 6), None)
-# r_ret, r_corners = cv2.findChessboardCorners(r_epi_img, (7, 6), None)
+# l_epi_gray = cv2.cvtColor(l_epi_img,cv2.COLOR_BGR2GRAY)
+# r_epi_gray = cv2.cvtColor(r_epi_img,cv2.COLOR_BGR2GRAY)
 #
-# l_corners2 = cv2.cornerSubPix(l_epi_img, l_corners, (11, 11), (-1, -1), criteria)
-# r_corners2 = cv2.cornerSubPix(r_epi_img, r_corners, (11, 11), (-1, -1), criteria)
+# l_ret, l_corners = cv2.findChessboardCorners(l_epi_gray, (7, 6), None)  # True, left_imgpoints[valid_idx[cached_index]]#
+# r_ret, r_corners = cv2.findChessboardCorners(r_epi_gray, (7, 6), None)  # True, right_imgpoints[valid_idx[cached_index]]#
 #
-# if l_corners2 is not None and r_corners2 is not None:
-#     l_corners = l_corners2
-#     r_corners = r_corners2
-#
-# l_img = cv2.imread('../imgs/rectified/after_left.jpg')
-# r_img = cv2.imread('../imgs/rectified/after_right.jpg')
-# l_img = cv2.drawChessboardCorners(l_img, (7,6), l_corners, l_ret)
-# r_img = cv2.drawChessboardCorners(r_img, (7,6), r_corners, r_ret)
-#
-# cv2.imwrite('../imgs/rectified/line_chessboard_left.jpg',l_img)
-# cv2.imwrite('../imgs/rectified/line_chessboard_right.jpg',r_img)
+# # l_img = cv2.imread('../imgs/rectified/before_left.jpg')
+# # r_img = cv2.imread('../imgs/rectified/before_right.jpg')
+# # l_img = cv2.drawChessboardCorners(l_img, (7,6), l_corners, l_ret)
+# # r_img = cv2.drawChessboardCorners(r_img, (7,6), r_corners, r_ret)
+# #
+# # cv2.imwrite('../imgs/rectified/line_chessboard_left.jpg',l_img)
+# # cv2.imwrite('../imgs/rectified/line_chessboard_right.jpg',r_img)
 #
 # l_epiline = cv2.computeCorrespondEpilines(l_corners[::7],1,F)
 # r_epiline = cv2.computeCorrespondEpilines(r_corners[::7],2,F)
@@ -162,16 +161,16 @@ cv2.imwrite('../imgs/rectified/after_right.jpg', r_rectified)
 # width = l_rectified.shape[1]
 # for l_line,r_line in zip(l_epiline,r_epiline):
 #     l_line, r_line = l_line[0], r_line[0]
-#     cv2.line(r_rectified,(0,int(-l_line[2]/l_line[1])),(width,int(-(l_line[2]+l_line[0]*width)/l_line[1])), color=(0,0,255))
-#     cv2.line(l_rectified,(0,int(-r_line[2]/r_line[1])),(width,int(-(r_line[2]+r_line[0]*width)/r_line[1])), color=(0,0,255))
+#     cv2.line(r_epi_img,(0,-l_line[2]/l_line[1]),(width,int(-(l_line[2]+l_line[0]*width)/l_line[1])), color=(0,0,255))
+#     cv2.line(l_epi_img,(0,-r_line[2]/r_line[1]),(width,int(-(r_line[2]+r_line[0]*width)/r_line[1])), color=(0,0,255))
+#
+# cv2.imwrite('../imgs/rectified/line_left.jpg', l_epi_img)
+# cv2.imwrite('../imgs/rectified/line_right.jpg', r_epi_img)
+# -------------------------------------------------------------------------------
 
-# cv2.imwrite('../imgs/rectified/line_left.jpg', l_rectified)
-# cv2.imwrite('../imgs/rectified/line_right.jpg', r_rectified)
-
-print('双目摄像机标定RMS:', retval)
-np.save('../data/left_camera_mtx.npy', l_mtx)
-np.save('../data/right_camera_mtx.npy', r_mtx)
-np.save('../data/left_camera_proj_mtx.npy', P1)
-np.save('../data/right_camera_proj_mtx.npy', P2)
+# np.save('../data/left_camera_mtx.npy', l_mtx)
+# np.save('../data/right_camera_mtx.npy', r_mtx)
+# np.save('../data/left_camera_proj_mtx.npy', P1)
+# np.save('../data/right_camera_proj_mtx.npy', P2)
 
 
