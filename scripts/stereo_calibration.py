@@ -13,9 +13,10 @@
 import numpy as np
 import cv2
 import glob
+import os
 
 # 迭代停止标准
-criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-5)
 
 # 准备建系在棋盘上的棋盘角点的坐标,Z坐标全部为0
 objp = np.zeros((6*7,3), np.float32)
@@ -29,8 +30,20 @@ right_imgpoints = [] # 2D图像坐标,利用cv2的API求得
 left_imgs = glob.glob('../imgs/left/*.jpg')
 right_imgs = glob.glob('../imgs/right/*.jpg')
 
+left_imgs = sorted(left_imgs)
+right_imgs = sorted(right_imgs)
+
+os.system('rm -rf ../imgs/check/*')
+
+# 某些pair会导致过大的RMS，将这些pair去除
+excluded_idx = [12]
+
 print('收集图像点坐标...')
-for left,right in zip(left_imgs,right_imgs):
+for i,(left,right) in enumerate(zip(left_imgs,right_imgs)):
+    if i in excluded_idx:
+        continue
+
+    print(left,right)
     l_img = cv2.imread(left)
     r_img = cv2.imread(right)
 
@@ -66,9 +79,20 @@ for left,right in zip(left_imgs,right_imgs):
             right_imgpoints.append(r_corners)
         # --------------------------------------------------------------------------#
 
+        l_tagged_img = cv2.drawChessboardCorners(l_img, (7,6), l_corners2, l_ret)
+        r_tagged_img = cv2.drawChessboardCorners(r_img, (7,6), r_corners2, r_ret)
+        # cv2.imshow('img_left',l_tagged_img)
+        # cv2.imshow('img_right',r_tagged_img)
+        # cv2.waitKey(2000)
+        cv2.imwrite(f'../imgs/check/{i+1}_l.jpg', l_tagged_img)
+        cv2.imwrite(f'../imgs/check/{i + 1}_r.jpg', r_tagged_img)
+
+
 print('逐个标定单目摄像机...')
-ret, l_mtx, l_dist, l_rvecs, l_tvecs = cv2.calibrateCamera(objpoints, left_imgpoints, l_img_size, None, None)
-ret, r_mtx, r_dist, r_rvecs, r_tvecs = cv2.calibrateCamera(objpoints, right_imgpoints, r_img_size, None, None)
+l_ret, l_mtx, l_dist, l_rvecs, l_tvecs = cv2.calibrateCamera(objpoints, left_imgpoints, l_img_size, None, None, criteria=criteria)
+r_ret, r_mtx, r_dist, r_rvecs, r_tvecs = cv2.calibrateCamera(objpoints, right_imgpoints, r_img_size, None, None, criteria=criteria)
+# print('左Camera标定的RMS:', l_ret)
+# print('右Camera标定的RMS:', r_ret)
 
 print('标定双目摄像机...')
 retval, cameraMatrix1, distCoeffs1, cameraMatrix2, distCoeffs2, R, T, E, F = \
@@ -79,14 +103,15 @@ retval, cameraMatrix1, distCoeffs1, cameraMatrix2, distCoeffs2, R, T, E, F = \
                         l_dist,
                         r_mtx,
                         r_dist,
-                        l_img_size)
+                        l_img_size,
+                        criteria=criteria)
 
 print('*'*50)
 print('左摄像机到右摄像机坐标系的旋转矩阵:','\n',R)
 print('左摄像机到右摄像机坐标系的位移矩阵:','\n',T)
 print('左摄像机到右摄像机坐标系的本征矩阵:','\n',E)
 print('左摄像机到右摄像机坐标系的基础矩阵:','\n',F)
+print('重建损失:', retval)
 
-
-
-
+cv2.destroyAllWindows()
+#

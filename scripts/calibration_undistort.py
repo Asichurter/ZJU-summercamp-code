@@ -24,17 +24,18 @@ objp[:,:2] = np.mgrid[0:7,0:6].T.reshape(-1,2)
 objpoints = [] # 存储棋盘点的3D世界坐标,为棋盘点坐标
 imgpoints = [] # 2D图像坐标,利用cv2的API求得
 
-images = glob.glob('../imgs/left/*.jpg')
+images = sorted(glob.glob('../imgs/left/*.jpg'))
 
-for fname in images:
+for i,fname in enumerate(images):
     img = cv2.imread(fname)
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
     img_size = gray.shape[::-1]     #　图像尺寸为(w,h)
 
     # 利用cv的API找到棋盘点在图像中的2D坐标
-    ret, corners = cv2.findChessboardCorners(gray, (7,6),None)
+    ret, corners = cv2.findChessboardCorners(gray, (7,6), None)
 
     # 如果找到了棋盘点,将该场景下的3D和2D坐标加入到存储中
+    print(i, ret)
     if ret:
         objpoints.append(objp)
 
@@ -62,13 +63,13 @@ ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_siz
 newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,img_size,1,img_size)
 
 # 利用相机矩阵进行畸变校正
-img = cv2.imread('../imgs/left/left01.jpg')
+img = cv2.imread('../imgs/right/right01.jpg')
 dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
 
 # 裁剪图像
 x,y,w,h = roi
 dst = dst[y:y+h, x:x+w]
-cv2.imwrite('../imgs/undistort/after_undistort.jpg',dst)
+cv2.imwrite('../imgs/undistort/after_undistort_right.jpg',dst)
 # cv2.imshow("img", dst)
 # cv2.waitKey(5000)
 cv2.destroyAllWindows()
