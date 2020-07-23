@@ -15,6 +15,11 @@ import numpy as np
 import cv2
 import glob
 
+# 要进行畸变校正的图像位置
+undistort_img_path = '../imgs/right/right01.jpg'
+# 畸变校正后的图像保存位置
+undistort_dst_path = '../imgs/undistort/after_undistort_right.jpg'
+
 # 迭代停止标准
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
@@ -64,13 +69,13 @@ ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_siz
 newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,img_size,1,img_size)
 
 # 利用相机矩阵进行畸变校正
-img = cv2.imread('../imgs/right/right01.jpg')
+img = cv2.imread(undistort_img_path)
 dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
 
 # 裁剪图像
 x,y,w,h = roi
 dst = dst[y:y+h, x:x+w]
-cv2.imwrite('../imgs/undistort/after_undistort_right.jpg',dst)
+cv2.imwrite(undistort_dst_path,dst)
 # cv2.imshow("img", dst)
 # cv2.waitKey(5000)
 cv2.destroyAllWindows()
